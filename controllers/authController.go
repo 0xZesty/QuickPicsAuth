@@ -240,6 +240,49 @@ func ForgotPassword(c *fiber.Ctx) error {
 	})
 }
 
+func ResetPassword(c *fiber.Ctx) error {
+
+	queryTokenValue := c.Query("token")
+	queryEmailValue := c.Query("email")
+	fmt.Println(queryTokenValue, queryEmailValue)
+	if queryTokenValue == "" || queryEmailValue == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid token or email",
+		})
+	}
+
+	var data map[string]string
+	if err := c.BodyParser(&data); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot parse JSON",
+		})
+	}
+
+	var user models.User
+
+	database.DB.Where("email = ? AND password_reset_token = ? AND password_reset_expires > ?", queryEmailValue, queryTokenValue, time.Now()).First(&user)
+	if user.ID == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "token expired or invalid or email invalid",
+		})
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(data["password"]), bcrypt.DefaultCost)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Cannot hash password",
+		})
+	}
+
+	database.DB.Model(&user).Update("password", string(hashedPassword))
+	database.DB.Model(&user).Update("password_reset_token", "")
+	database.DB.Model(&user).Update("password_reset_expires", time.Now())
+
+	return c.JSON(fiber.Map{
+		"message": "Password has been reset",
+	})
+}
+
 func Logout(c *fiber.Ctx) error {
 
 	cookie := fiber.Cookie{
