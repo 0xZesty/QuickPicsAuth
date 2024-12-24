@@ -7,6 +7,7 @@ import (
 	gen "math/rand/v2"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"QuickPicsAuth/database"
@@ -126,14 +127,7 @@ func Login(c *fiber.Ctx) error {
 		})
 	}
 
-	cookie := fiber.Cookie{
-		Name:     "session",
-		Value:    token,
-		Expires:  time.Now().Add(time.Hour * 1),
-		HTTPOnly: true,
-		Secure:   true,
-	}
-	c.Cookie(&cookie)
+	c.Set("Authorization", "Bearer "+token)
 
 	return c.JSON(fiber.Map{
 		"message": "Login successful",
@@ -144,9 +138,21 @@ func User(c *fiber.Ctx) error {
 
 	fmt.Println("User request")
 
-	cookie := c.Cookies("session")
+	cookie := c.Get("Authorization")
+	if cookie == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthenticated",
+		})
+	}
 
-	token, err := jwt.ParseWithClaims(cookie, &jwt.MapClaims{}, func(t *jwt.Token) (interface{}, error) {
+	bearerToken := strings.Split(cookie, " ")
+	if len(bearerToken) != 2 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Unauthenticated",
+		})
+	}
+
+	token, err := jwt.ParseWithClaims(bearerToken[1], &jwt.MapClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("SECRET")), nil
 	})
 
@@ -168,7 +174,13 @@ func User(c *fiber.Ctx) error {
 	user := models.User{ID: uint(id)}
 	var userResponse UserResponse
 
-	if err := database.DB.Model(&user).Select("id", "name", "email", "pix", "cpf").Scan(&userResponse).Error; err != nil {
+	if err := database.DB.Model(&user).Select("id", "name", "email", "pix", "cpf").Where("id = ?", user.ID).Scan(&userResponse).Error; err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": "User not found",
+		})
+	}
+
+	if userResponse.ID == 0 {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"error": "User not found",
 		})

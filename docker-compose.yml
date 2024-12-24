@@ -1,0 +1,32 @@
+name: go-rest
+
+
+services:
+  pg:
+    image: postgres:13
+    container_name: pg
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: quickpicsauth
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  
+  go-rest:
+    build: .
+    container_name: go-rest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - pg
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: mysecretpassword
+      DB_NAME: quickpicsauth
+      DB_HOST: pg
+      DB_PORT: 5432
+    volumes:
+      - .:/app
+    command: go run main.go
