@@ -1,32 +1,31 @@
-name: go-rest
-
+version: "3.8"
 
 services:
-  pg:
-    image: postgres:13
-    container_name: pg
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    env_file: 
+      - .env # Mapeia o arquivo .env para o contêiner
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+
+  postgres:
+    image: postgres:15
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: mysecretpassword
       POSTGRES_DB: quickpicsauth
-    ports:
-      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-  
-  go-rest:
-    build: .
-    container_name: go-rest
-    ports:
-      - "8080:8080"
-    depends_on:
-      - pg
-    environment:
-      DB_USER: postgres
-      DB_PASSWORD: mysecretpassword
-      DB_NAME: quickpicsauth
-      DB_HOST: pg
-      DB_PORT: 5432
-    volumes:
-      - .:/app
-    command: go run main.go
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
